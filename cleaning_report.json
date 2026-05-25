@@ -1,0 +1,35 @@
+{
+  "generated_at": "2026-05-25T17:12:14.781037",
+  "original_rows": 210,
+  "original_cols": 8,
+  "cleaned_rows": 201,
+  "cleaned_cols": 8,
+  "duplicates_removed": 9,
+  "missing_values": {
+    "age": 15,
+    "salary": 9,
+    "region": 62
+  },
+  "inconsistencies": {
+    "name": {
+      "type": "string_standardisation",
+      "rows_affected": 161
+    },
+    "department": {
+      "type": "string_standardisation",
+      "rows_affected": 168
+    },
+    "region": {
+      "type": "string_standardisation",
+      "rows_affected": 105
+    },
+    "salary": {
+      "type": "outlier_clipping",
+      "rows_affected": 5,
+      "bounds": [
+        -40224.9,
+        164122.74
+      ]
+    }
+  }
+}
