@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sales & Revenue Analysis Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a202c; }
+
+  .header { background: linear-gradient(135deg, #1e3a5f, #2563eb); color: white; padding: 24px 32px; display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { font-size: 24px; font-weight: 700; }
+  .header p { font-size: 13px; opacity: 0.8; margin-top: 4px; }
+  .header-right { text-align: right; font-size: 13px; opacity: 0.85; }
+
+  .filters { background: white; padding: 16px 32px; display: flex; gap: 16px; align-items: center; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; }
+  .filters label { font-size: 13px; font-weight: 600; color: #4a5568; }
+  .filters select { padding: 7px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; background: #f7fafc; cursor: pointer; color: #2d3748; }
+  .filters button { padding: 8px 18px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .filters button:hover { background: #1d4ed8; }
+
+  .main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .kpi-card { background: white; border-radius: 12px; padding: 20px; border: 1px solid #e2e8f0; position: relative; overflow: hidden; }
+  .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; }
+  .kpi-card.blue::before { background: #2563eb; }
+  .kpi-card.green::before { background: #10b981; }
+  .kpi-card.orange::before { background: #f59e0b; }
+  .kpi-card.purple::before { background: #8b5cf6; }
+  .kpi-label { font-size: 12px; font-weight: 600; color: #718096; text-transform: uppercase; letter-spacing: 0.05em; }
+  .kpi-value { font-size: 28px; font-weight: 700; color: #1a202c; margin: 6px 0 4px; }
+  .kpi-change { font-size: 12px; font-weight: 600; }
+  .kpi-change.up { color: #10b981; }
+  .kpi-change.down { color: #ef4444; }
+  .kpi-icon { position: absolute; right: 16px; top: 16px; font-size: 32px; opacity: 0.12; }
+
+  .charts-row { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .charts-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .chart-card { background: white; border-radius: 12px; padding: 20px; border: 1px solid #e2e8f0; }
+  .chart-card h3 { font-size: 15px; font-weight: 700; color: #2d3748; margin-bottom: 4px; }
+  .chart-card p { font-size: 12px; color: #718096; margin-bottom: 16px; }
+  .chart-wrapper { position: relative; }
+
+  .table-card { background: white; border-radius: 12px; padding: 20px; border: 1px solid #e2e8f0; margin-bottom: 16px; }
+  .table-card h3 { font-size: 15px; font-weight: 700; color: #2d3748; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 14px; background: #f7fafc; color: #4a5568; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid #e2e8f0; }
+  td { padding: 11px 14px; border-bottom: 1px solid #f0f4f8; color: #2d3748; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f7fafc; }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge.high { background: #d1fae5; color: #065f46; }
+  .badge.mid { background: #fef3c7; color: #92400e; }
+  .badge.low { background: #fee2e2; color: #991b1b; }
+  .bar-cell { display: flex; align-items: center; gap: 8px; }
+  .mini-bar { height: 8px; border-radius: 4px; background: #2563eb; }
+  .mini-bar-bg { height: 8px; border-radius: 4px; background: #e2e8f0; flex: 1; overflow: hidden; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; font-size: 12px; color: #4a5568; }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  footer { text-align: center; padding: 20px; color: #718096; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>📊 Sales & Revenue Analysis Dashboard</h1>
+    <p>Business Intelligence · Data Analytics Internship · Task 1</p>
+  </div>
+  <div class="header-right">
+    <div style="font-weight:700; font-size:15px;">FY 2025–2026</div>
+    <div>Last updated: May 2026</div>
+  </div>
+</div>
+
+<div class="filters">
+  <label>Time Period:</label>
+  <select id="periodFilter" onchange="applyFilter()">
+    <option value="all">All Months (Jan–Apr 2026)</option>
+    <option value="q1">Q1 2026 (Jan–Mar)</option>
+    <option value="q4">Q4 2025 (Oct–Dec)</option>
+  </select>
+  <label>Region:</label>
+  <select id="regionFilter" onchange="applyFilter()">
+    <option value="all">All Regions</option>
+    <option value="north">North</option>
+    <option value="south">South</option>
+    <option value="east">East</option>
+    <option value="west">West</option>
+  </select>
+  <label>Category:</label>
+  <select id="categoryFilter" onchange="applyFilter()">
+    <option value="all">All Categories</option>
+    <option value="electronics">Electronics</option>
+    <option value="apparel">Apparel</option>
+    <option value="furniture">Furniture</option>
+  </select>
+  <button onclick="resetFilters()">Reset Filters</button>
+</div>
+
+<div class="main">
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid">
+    <div class="kpi-card blue">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-label">Total Revenue</div>
+      <div class="kpi-value" id="kpiRevenue">$4.28M</div>
+      <div class="kpi-change up">▲ 12.4% vs last period</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-icon">🛒</div>
+      <div class="kpi-label">Total Orders</div>
+      <div class="kpi-value" id="kpiOrders">18,342</div>
+      <div class="kpi-change up">▲ 8.7% vs last period</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-icon">🎯</div>
+      <div class="kpi-label">Avg Order Value</div>
+      <div class="kpi-value" id="kpiAOV">$233</div>
+      <div class="kpi-change up">▲ 3.2% vs last period</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-icon">📈</div>
+      <div class="kpi-label">Profit Margin</div>
+      <div class="kpi-value" id="kpiMargin">34.6%</div>
+      <div class="kpi-change down">▼ 1.1% vs last period</div>
+    </div>
+  </div>
+
+  <!-- Revenue Trend + Category Donut -->
+  <div class="charts-row">
+    <div class="chart-card">
+      <h3>Monthly Revenue & Sales Trend</h3>
+      <p>Revenue vs Orders over the past 12 months</p>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-dot" style="background:#2563eb"></span>Revenue ($K)</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#10b981"></span>Orders</span>
+      </div>
+      <div class="chart-wrapper" style="height:260px">
+        <canvas id="revenueChart" role="img" aria-label="Monthly revenue and orders trend chart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>Revenue by Category</h3>
+      <p>Product category contribution to total revenue</p>
+      <div class="chart-wrapper" style="height:200px; margin-bottom:10px">
+        <canvas id="categoryChart" role="img" aria-label="Revenue by product category donut chart"></canvas>
+      </div>
+      <div class="legend" style="justify-content:center">
+        <span class="legend-item"><span class="legend-dot" style="background:#2563eb"></span>Electronics 42%</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#10b981"></span>Apparel 28%</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span>Furniture 18%</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#8b5cf6"></span>Other 12%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Region Bar + Weekly Trend -->
+  <div class="charts-row-2">
+    <div class="chart-card">
+      <h3>Revenue by Region</h3>
+      <p>Comparing sales performance across all regions</p>
+      <div class="chart-wrapper" style="height:220px">
+        <canvas id="regionChart" role="img" aria-label="Revenue by region bar chart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>Weekly Sales Volume</h3>
+      <p>Units sold per week in the last 8 weeks</p>
+      <div class="chart-wrapper" style="height:220px">
+        <canvas id="weeklyChart" role="img" aria-label="Weekly sales volume line chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Products Table -->
+  <div class="table-card">
+    <h3>🏆 Top Performing Products</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Product Name</th>
+          <th>Category</th>
+          <th>Units Sold</th>
+          <th>Revenue</th>
+          <th>Growth</th>
+          <th>Performance</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td><td><b>ProBook Laptop X15</b></td><td>Electronics</td><td>3,214</td><td>$1,284,600</td><td class="kpi-change up">▲ 18.2%</td>
+          <td><div class="bar-cell"><div class="mini-bar-bg"><div class="mini-bar" style="width:92%"></div></div><span>92%</span></div></td>
+          <td><span class="badge high">High</span></td>
+        </tr>
+        <tr>
+          <td>2</td><td><b>SmartPhone Z Pro</b></td><td>Electronics</td><td>5,820</td><td>$931,200</td><td class="kpi-change up">▲ 14.6%</td>
+          <td><div class="bar-cell"><div class="mini-bar-bg"><div class="mini-bar" style="width:78%"></div></div><span>78%</span></div></td>
+          <td><span class="badge high">High</span></td>
+        </tr>
+        <tr>
+          <td>3</td><td><b>ErgoDesk Pro</b></td><td>Furniture</td><td>1,430</td><td>$572,000</td><td class="kpi-change up">▲ 9.1%</td>
+          <td><div class="bar-cell"><div class="mini-bar-bg"><div class="mini-bar" style="width:60%"></div></div><span>60%</span></div></td>
+          <td><span class="badge mid">Mid</span></td>
+        </tr>
+        <tr>
+          <td>4</td><td><b>ActiveWear Classic</b></td><td>Apparel</td><td>7,200</td><td>$432,000</td><td class="kpi-change up">▲ 6.5%</td>
+          <td><div class="bar-cell"><div class="mini-bar-bg"><div class="mini-bar" style="width:52%"></div></div><span>52%</span></div></td>
+          <td><span class="badge mid">Mid</span></td>
+        </tr>
+        <tr>
+          <td>5</td><td><b>Wireless Headset BT9</b></td><td>Electronics</td><td>4,100</td><td>$369,000</td><td class="kpi-change down">▼ 2.4%</td>
+          <td><div class="bar-cell"><div class="mini-bar-bg"><div class="mini-bar" style="width:41%"></div></div><span>41%</span></div></td>
+          <td><span class="badge low">Low</span></td>
+        </tr>
+        <tr>
+          <td>6</td><td><b>Smart TV 55" 4K</b></td><td>Electronics</td><td>890</td><td>$285,760</td><td class="kpi-change up">▲ 22.3%</td>
+          <td><div class="bar-cell"><div class="mini-bar-bg"><div class="mini-bar" style="width:38%"></div></div><span>38%</span></div></td>
+          <td><span class="badge high">High</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<footer>Sales & Revenue Analysis Dashboard &nbsp;·&nbsp; Data Analytics Internship Task 1 &nbsp;·&nbsp; Developed May 2026</footer>
+
+<script>
+const months = ['May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr'];
+const revenueData = [280, 310, 295, 340, 365, 390, 420, 385, 410, 445, 468, 490];
+const ordersData = [1100,1250,1180,1390,1450,1560,1680,1520,1620,1740,1830,1950];
+
+const rc = new Chart(document.getElementById('revenueChart'), {
+  type: 'bar',
+  data: {
+    labels: months,
+    datasets: [
+      { label: 'Revenue ($K)', data: revenueData, backgroundColor: '#2563eb', borderRadius: 5, yAxisID: 'y' },
+      { label: 'Orders', data: ordersData, type: 'line', borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)', borderWidth: 2, pointBackgroundColor: '#10b981', pointRadius: 3, tension: 0.4, fill: true, yAxisID: 'y1' }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { position: 'left', grid: { color: '#f0f4f8' }, ticks: { callback: v => '$' + v + 'K' } },
+      y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v.toLocaleString() } }
+    }
+  }
+});
+
+new Chart(document.getElementById('categoryChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Electronics','Apparel','Furniture','Other'],
+    datasets: [{ data: [42,28,18,12], backgroundColor: ['#2563eb','#10b981','#f59e0b','#8b5cf6'], borderWidth: 2, borderColor: '#fff' }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed + '%' } } },
+    cutout: '65%'
+  }
+});
+
+new Chart(document.getElementById('regionChart'), {
+  type: 'bar',
+  data: {
+    labels: ['North','South','East','West'],
+    datasets: [{ label: 'Revenue ($K)', data: [1240, 980, 1120, 940], backgroundColor: ['#2563eb','#10b981','#f59e0b','#8b5cf6'], borderRadius: 6 }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: { y: { grid: { color: '#f0f4f8' }, ticks: { callback: v => '$' + v + 'K' } } }
+  }
+});
+
+new Chart(document.getElementById('weeklyChart'), {
+  type: 'line',
+  data: {
+    labels: ['Wk1','Wk2','Wk3','Wk4','Wk5','Wk6','Wk7','Wk8'],
+    datasets: [{ label: 'Units Sold', data: [3200,3800,3500,4100,3900,4400,4200,4700], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', borderWidth: 2.5, pointBackgroundColor: '#f59e0b', tension: 0.4, fill: true }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: { y: { grid: { color: '#f0f4f8' } } }
+  }
+});
+
+function applyFilter() {
+  const period = document.getElementById('periodFilter').value;
+  let labels, data;
+  if (period === 'q1') { labels = ['Jan','Feb','Mar']; data = [410,445,468]; }
+  else if (period === 'q4') { labels = ['Oct','Nov','Dec']; data = [390,420,385]; }
+  else { labels = months; data = revenueData; }
+  rc.data.labels = labels;
+  rc.data.datasets[0].data = data;
+  rc.update();
+}
+
+function resetFilters() {
+  document.getElementById('periodFilter').value = 'all';
+  document.getElementById('regionFilter').value = 'all';
+  document.getElementById('categoryFilter').value = 'all';
+  applyFilter();
+}
+</script>
+</body>
+</html>

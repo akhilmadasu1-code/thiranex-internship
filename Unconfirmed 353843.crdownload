@@ -1,0 +1,251 @@
+"""
+Task 2: Customer Segmentation Project
+Data Analytics Internship
+Description: Segments customers based on behavior and demographics using K-Means clustering.
+"""
+
+import numpy as np
+import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.metrics import silhouette_score
+import warnings
+warnings.filterwarnings('ignore')
+
+print("=" * 60)
+print("  CUSTOMER SEGMENTATION PROJECT")
+print("  Data Analytics Internship - Task 2")
+print("=" * 60)
+
+# ─────────────────────────────────────────────────────────────
+# STEP 1: Generate Realistic Customer Dataset
+# ─────────────────────────────────────────────────────────────
+print("\n[STEP 1] Generating customer dataset...")
+np.random.seed(42)
+n = 500
+
+# Simulate 4 customer types
+segments_raw = {
+    'Young Budget': dict(n=120, age=(18,30), income=(15000,35000), spend=(20,80), freq=(1,4), loyalty=(1,3)),
+    'Working Mid':  dict(n=150, age=(30,50), income=(40000,80000), spend=(50,150), freq=(3,7), loyalty=(3,6)),
+    'High Earner':  dict(n=100, age=(35,60), income=(90000,200000), spend=(200,500), freq=(5,12), loyalty=(5,9)),
+    'Senior Loyal': dict(n=130, age=(55,80), income=(30000,70000), spend=(80,200), freq=(4,9), loyalty=(7,10)),
+}
+
+rows = []
+for seg, p in segments_raw.items():
+    for _ in range(p['n']):
+        rows.append({
+            'CustomerID': f'C{len(rows)+1001}',
+            'Age': np.random.randint(*p['age']),
+            'AnnualIncome_K': np.random.randint(*p['income']) // 1000,
+            'MonthlySpend': round(np.random.uniform(*p['spend']), 2),
+            'PurchaseFrequency': np.random.randint(*p['freq']),
+            'LoyaltyScore': np.random.randint(*p['loyalty']),
+            'TrueSegment': seg
+        })
+
+df = pd.DataFrame(rows).sample(frac=1, random_state=42).reset_index(drop=True)
+print(f"   Dataset created: {len(df)} customers, {df.shape[1]} features")
+print(df.describe().round(2).to_string())
+df.to_csv('customer_data.csv', index=False)
+print("   Saved: customer_data.csv")
+
+# ─────────────────────────────────────────────────────────────
+# STEP 2: Preprocessing
+# ─────────────────────────────────────────────────────────────
+print("\n[STEP 2] Preprocessing data...")
+features = ['Age','AnnualIncome_K','MonthlySpend','PurchaseFrequency','LoyaltyScore']
+X = df[features].values
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+print(f"   Features scaled using StandardScaler: {features}")
+
+# ─────────────────────────────────────────────────────────────
+# STEP 3: Find Optimal k with Elbow Method
+# ─────────────────────────────────────────────────────────────
+print("\n[STEP 3] Finding optimal number of clusters (Elbow Method)...")
+inertias, sil_scores = [], []
+k_range = range(2, 10)
+for k in k_range:
+    km = KMeans(n_clusters=k, random_state=42, n_init=10)
+    km.fit(X_scaled)
+    inertias.append(km.inertia_)
+    sil_scores.append(silhouette_score(X_scaled, km.labels_))
+    print(f"   k={k}: Inertia={km.inertia_:.0f}, Silhouette={sil_scores[-1]:.4f}")
+
+# ─────────────────────────────────────────────────────────────
+# STEP 4: Apply K-Means with k=4
+# ─────────────────────────────────────────────────────────────
+print("\n[STEP 4] Applying K-Means clustering with k=4...")
+kmeans = KMeans(n_clusters=4, random_state=42, n_init=10)
+df['Cluster'] = kmeans.fit_predict(X_scaled)
+sil = silhouette_score(X_scaled, df['Cluster'])
+print(f"   Final Silhouette Score: {sil:.4f}  (closer to 1.0 = better separation)")
+
+# Label clusters by their characteristics
+cluster_means = df.groupby('Cluster')[features].mean()
+labels_map = {}
+for c in range(4):
+    row = cluster_means.loc[c]
+    if row['AnnualIncome_K'] > 80:
+        labels_map[c] = 'Premium Customers'
+    elif row['LoyaltyScore'] > 6:
+        labels_map[c] = 'Loyal Seniors'
+    elif row['Age'] < 35:
+        labels_map[c] = 'Young Budget'
+    else:
+        labels_map[c] = 'Mid-Range Buyers'
+
+df['Segment'] = df['Cluster'].map(labels_map)
+print("\n   Cluster Profiles:")
+summary = df.groupby('Segment')[features].mean().round(2)
+print(summary.to_string())
+
+# ─────────────────────────────────────────────────────────────
+# STEP 5: Visualizations
+# ─────────────────────────────────────────────────────────────
+print("\n[STEP 5] Creating visualizations...")
+colors = ['#2563eb', '#10b981', '#f59e0b', '#ef4444']
+seg_names = df['Segment'].unique()
+color_map = {name: colors[i] for i, name in enumerate(sorted(seg_names))}
+
+fig = plt.figure(figsize=(18, 14))
+fig.suptitle('Customer Segmentation Analysis  |  Data Analytics Internship - Task 2',
+             fontsize=16, fontweight='bold', y=0.98)
+
+# Plot 1: Elbow Method
+ax1 = fig.add_subplot(3, 3, 1)
+ax1.plot(list(k_range), inertias, 'o-', color='#2563eb', linewidth=2, markersize=6)
+ax1.axvline(x=4, color='#ef4444', linestyle='--', alpha=0.6, label='k=4 (chosen)')
+ax1.set_title('Elbow Method (Optimal k)', fontweight='bold')
+ax1.set_xlabel('Number of Clusters (k)')
+ax1.set_ylabel('Inertia')
+ax1.legend()
+ax1.grid(alpha=0.3)
+
+# Plot 2: Silhouette Scores
+ax2 = fig.add_subplot(3, 3, 2)
+ax2.bar(list(k_range), sil_scores, color='#10b981', edgecolor='white')
+ax2.axvline(x=4, color='#ef4444', linestyle='--', alpha=0.6)
+ax2.set_title('Silhouette Scores per k', fontweight='bold')
+ax2.set_xlabel('Number of Clusters (k)')
+ax2.set_ylabel('Silhouette Score')
+ax2.grid(alpha=0.3, axis='y')
+
+# Plot 3: Cluster Distribution Pie
+ax3 = fig.add_subplot(3, 3, 3)
+counts = df['Segment'].value_counts()
+ax3.pie(counts.values, labels=counts.index, colors=[color_map[s] for s in counts.index],
+        autopct='%1.1f%%', startangle=90, pctdistance=0.8)
+ax3.set_title('Customer Segment Distribution', fontweight='bold')
+
+# Plot 4: Age vs Monthly Spend
+ax4 = fig.add_subplot(3, 3, 4)
+for seg in sorted(df['Segment'].unique()):
+    sub = df[df['Segment'] == seg]
+    ax4.scatter(sub['Age'], sub['MonthlySpend'], c=color_map[seg], label=seg, alpha=0.6, s=30)
+ax4.set_title('Age vs Monthly Spend', fontweight='bold')
+ax4.set_xlabel('Age')
+ax4.set_ylabel('Monthly Spend ($)')
+ax4.legend(fontsize=8)
+ax4.grid(alpha=0.3)
+
+# Plot 5: Income vs Spend
+ax5 = fig.add_subplot(3, 3, 5)
+for seg in sorted(df['Segment'].unique()):
+    sub = df[df['Segment'] == seg]
+    ax5.scatter(sub['AnnualIncome_K'], sub['MonthlySpend'], c=color_map[seg], label=seg, alpha=0.6, s=30)
+ax5.set_title('Annual Income vs Monthly Spend', fontweight='bold')
+ax5.set_xlabel('Annual Income (K$)')
+ax5.set_ylabel('Monthly Spend ($)')
+ax5.legend(fontsize=8)
+ax5.grid(alpha=0.3)
+
+# Plot 6: PCA 2D Projection
+ax6 = fig.add_subplot(3, 3, 6)
+pca = PCA(n_components=2, random_state=42)
+X_pca = pca.fit_transform(X_scaled)
+for seg in sorted(df['Segment'].unique()):
+    mask = df['Segment'] == seg
+    ax6.scatter(X_pca[mask, 0], X_pca[mask, 1], c=color_map[seg], label=seg, alpha=0.6, s=30)
+ax6.set_title(f'PCA 2D View (Var: {pca.explained_variance_ratio_.sum()*100:.1f}%)', fontweight='bold')
+ax6.set_xlabel('PC1')
+ax6.set_ylabel('PC2')
+ax6.legend(fontsize=8)
+ax6.grid(alpha=0.3)
+
+# Plot 7: Loyalty Score by Segment
+ax7 = fig.add_subplot(3, 3, 7)
+segs = sorted(df['Segment'].unique())
+loyalty_means = [df[df['Segment']==s]['LoyaltyScore'].mean() for s in segs]
+bars = ax7.bar(segs, loyalty_means, color=[color_map[s] for s in segs], edgecolor='white', linewidth=1.5)
+for b, v in zip(bars, loyalty_means):
+    ax7.text(b.get_x()+b.get_width()/2, b.get_height()+0.05, f'{v:.2f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+ax7.set_title('Avg Loyalty Score by Segment', fontweight='bold')
+ax7.set_ylabel('Loyalty Score (1-10)')
+ax7.set_xticks(range(len(segs)))
+ax7.set_xticklabels(segs, rotation=15, fontsize=9)
+ax7.grid(alpha=0.3, axis='y')
+
+# Plot 8: Purchase Frequency Distribution
+ax8 = fig.add_subplot(3, 3, 8)
+for seg in sorted(df['Segment'].unique()):
+    sub = df[df['Segment'] == seg]['PurchaseFrequency']
+    ax8.hist(sub, bins=8, alpha=0.55, color=color_map[seg], label=seg, edgecolor='white')
+ax8.set_title('Purchase Frequency Distribution', fontweight='bold')
+ax8.set_xlabel('Purchases per Month')
+ax8.set_ylabel('Count')
+ax8.legend(fontsize=8)
+ax8.grid(alpha=0.3, axis='y')
+
+# Plot 9: Radar/Spider Chart - Cluster Profiles
+ax9 = fig.add_subplot(3, 3, 9, polar=True)
+cat_labels = ['Age', 'Income', 'Spend', 'Frequency', 'Loyalty']
+angles = np.linspace(0, 2*np.pi, len(cat_labels), endpoint=False).tolist()
+angles += angles[:1]
+for seg in sorted(df['Segment'].unique()):
+    row = df[df['Segment']==seg][features].mean()
+    normed = [(row[f] - df[f].min()) / (df[f].max() - df[f].min()) for f in features]
+    normed += normed[:1]
+    ax9.plot(angles, normed, '-o', color=color_map[seg], linewidth=1.5, markersize=4, label=seg)
+    ax9.fill(angles, normed, alpha=0.1, color=color_map[seg])
+ax9.set_xticks(angles[:-1])
+ax9.set_xticklabels(cat_labels, fontsize=9)
+ax9.set_title('Segment Profiles (Normalized)', fontweight='bold', pad=20)
+ax9.legend(loc='upper right', bbox_to_anchor=(1.35, 1.1), fontsize=8)
+
+plt.tight_layout(rect=[0,0,1,0.97])
+plt.savefig('task2_segmentation_analysis.png', dpi=150, bbox_inches='tight', facecolor='white')
+plt.close()
+print("   Saved: task2_segmentation_analysis.png")
+
+# Save segmented results
+df.to_csv('customer_segments_output.csv', index=False)
+print("   Saved: customer_segments_output.csv")
+
+# ─────────────────────────────────────────────────────────────
+# STEP 6: Summary Report
+# ─────────────────────────────────────────────────────────────
+print("\n" + "=" * 60)
+print("  SEGMENTATION SUMMARY REPORT")
+print("=" * 60)
+for seg in sorted(df['Segment'].unique()):
+    sub = df[df['Segment'] == seg]
+    print(f"\n  [{seg}]  ({len(sub)} customers, {len(sub)/len(df)*100:.1f}%)")
+    print(f"    Avg Age         : {sub['Age'].mean():.1f} years")
+    print(f"    Avg Income      : ${sub['AnnualIncome_K'].mean():.1f}K/year")
+    print(f"    Avg Monthly Spend: ${sub['MonthlySpend'].mean():.2f}")
+    print(f"    Avg Frequency   : {sub['PurchaseFrequency'].mean():.1f} purchases/month")
+    print(f"    Avg Loyalty     : {sub['LoyaltyScore'].mean():.2f}/10")
+
+print(f"\n  Silhouette Score: {sil:.4f}")
+print("\n  Task 2 Complete! Files generated:")
+print("   • customer_data.csv        — raw input dataset")
+print("   • customer_segments_output.csv — labelled output")
+print("   • task2_segmentation_analysis.png — all charts")
